@@ -1,5 +1,6 @@
 import os
 import logging
+pip install standard-imghdr
 from telegram import Update
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext
 
