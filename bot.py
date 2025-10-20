@@ -1,6 +1,5 @@
 import os
 import logging
-pip install standard-imghdr
 from telegram import Update
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext
 
@@ -18,7 +17,7 @@ def echo(update: Update, context: CallbackContext):
 
 def main():
     # Используем старый стиль с Updater
-    updater = Updater(BOT_TOKEN)
+    updater = Updater(BOT_TOKEN, use_context=True)
     dispatcher = updater.dispatcher
     
     # Добавляем обработчики
@@ -26,7 +25,7 @@ def main():
     dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, echo))
     
     # Запускаем бота
-    logger.info("Бот запущен!")
+    logger.info("🤖 Бот успешно запущен!")
     updater.start_polling()
     updater.idle()
 
