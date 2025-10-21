@@ -2,6 +2,7 @@ import os
 import json
 import asyncio
 import logging
+import re
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
@@ -13,11 +14,19 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 BOT_TOKEN = os.getenv('BOT_TOKEN')
-ADMIN_ID = int(os.getenv('ADMIN_ID', 0))  # 0 — если не задан, уведомления будут недоступны
+ADMIN_ID = int(os.getenv('ADMIN_ID', 0))
+
+# === Вспомогательная функция: очистка текста для сравнения ===
+def normalize(text: str) -> str:
+    """Удаляет знаки препинания и приводит к нижнему регистру."""
+    return re.sub(r'[^\w\s]', '', text).strip().lower()
 
 # === Загрузка FAQ ===
 with open('faq.json', 'r', encoding='utf-8') as f:
     FAQ = json.load(f)
+
+# Нормализованные ключи для быстрого поиска
+FAQ_NORMALIZED = {normalize(q): a for q, a in FAQ.items()}
 
 # === Клавиатура ===
 MAIN_KEYBOARD = [
@@ -26,18 +35,13 @@ MAIN_KEYBOARD = [
 ]
 reply_markup = ReplyKeyboardMarkup(MAIN_KEYBOARD, resize_keyboard=True)
 
-# === Функция "зарплата" (заглушка с персонализацией) ===
+# === Функция "зарплата" ===
 def get_salary_info(user_id: int) -> str:
-    """
-    В реальности: запрос к БД по user_id или telegram_id.
-    Сейчас: имитация на основе ID (для демо — достаточно).
-    """
-    # Пример: разные суммы для разных ID (для живости)
     salaries = {
         123456789: "92 300 ₽",
         987654321: "78 500 ₽",
     }
-    salary = salaries.get(user_id, "85 000 ₽")  # значение по умолчанию
+    salary = salaries.get(user_id, "85 000 ₽")
     return f"Ваша начисленная зарплата за сентябрь 2025: **{salary}**"
 
 # === Обработчики ===
@@ -51,17 +55,27 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip()
     user_id = update.effective_user.id
+    if not text:
+        return
+
+    normalized_input = normalize(text)
+
+    # --- 1. Точное совпадение с FAQ (нормализованное) ---
+    if normalized_input in FAQ_NORMALIZED:
+        await update.message.reply_text(FAQ_NORMALIZED[normalized_input])
+        return
+
+    # --- 2. Обработка кнопок и ключевых слов ---
     text_lower = text.lower()
 
-    # --- Зарплата ---
+    # Зарплата: срабатывает ТОЛЬКО если это не вопрос из FAQ
     if text == "Узнать свою ЗП" or any(kw in text_lower for kw in ["зп", "зарплат", "оклад", "деньги"]):
         await update.message.reply_text("🔍 Запрашиваю данные из системы расчёта заработной платы...")
-        await asyncio.sleep(1.2)  # имитация задержки
+        await asyncio.sleep(1.2)
         salary_msg = get_salary_info(user_id)
         await update.message.reply_text(salary_msg, parse_mode="Markdown")
         return
 
-    # --- HR ---
     if text == "Связаться с HR":
         await update.message.reply_text(
             "📧 Напишите в HR-отдел:\n"
@@ -70,7 +84,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    # --- Список вопросов ---
     if text == "Частые вопросы":
         questions = "\n".join([f"• {q}" for q in FAQ.keys()])
         await update.message.reply_text(
@@ -78,13 +91,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    # --- Поиск в FAQ ---
-    for question, answer in FAQ.items():
-        if text_lower in question.lower() or question.lower() in text_lower:
-            await update.message.reply_text(answer)
-            return
-
-    # --- Не найдено ---
+    # --- 3. Не найдено ---
     await update.message.reply_text(
         "Извините, я не нашёл ответ на этот вопрос. 😕\n"
         "Попробуйте выбрать из меню или напишите в HR."
@@ -115,7 +122,7 @@ async def notify_salary_sent(update: Update, context: ContextTypes.DEFAULT_TYPE)
 def main():
     if not BOT_TOKEN:
         raise ValueError("Переменная BOT_TOKEN не задана!")
-    
+
     application = Application.builder().token(BOT_TOKEN).build()
 
     application.add_handler(CommandHandler("start", start))
