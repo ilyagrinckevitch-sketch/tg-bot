@@ -1,33 +1,30 @@
 import os
 import logging
 from telegram import Update
-from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
-# Настройка логирования
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.INFO
+)
 logger = logging.getLogger(__name__)
 
 BOT_TOKEN = os.getenv('BOT_TOKEN')
 
-def start(update: Update, context: CallbackContext):
-    update.message.reply_text('✅ Бот работает! Напиши что-нибудь.')
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text('✅ Бот работает! Напиши что-нибудь.')
 
-def echo(update: Update, context: CallbackContext):
-    update.message.reply_text(f'Ты написал: {update.message.text}')
+async def echo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(f'Ты написал: {update.message.text}')
 
 def main():
-    # Используем старый стиль с Updater
-    updater = Updater(BOT_TOKEN, use_context=True)
-    dispatcher = updater.dispatcher
-    
-    # Добавляем обработчики
-    dispatcher.add_handler(CommandHandler("start", start))
-    dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, echo))
-    
-    # Запускаем бота
+    application = Application.builder().token(BOT_TOKEN).build()
+
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, echo))
+
     logger.info("🤖 Бот успешно запущен!")
-    updater.start_polling()
-    updater.idle()
+    application.run_polling()
 
 if __name__ == "__main__":
     main()
